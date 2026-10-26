@@ -1,0 +1,128 @@
+name: Build Custom Samsung A11 NetHunter Kernel
+
+on:
+  workflow_dispatch: # Allows you to manually trigger the build with a single click
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Maximize System Build Disk Space
+        uses: easimon/maximize-build-space@main
+        with:
+          root-reserve-mb: 5120
+          swap-size-mb: 2048
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+
+      - name: Install Compiling Toolchain Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev zinc \
+            bison flex libelf-dev git subversion python3-dev python2-dev libtinfo5 ccache
+
+      - name: Download GCC Cross-Compilers (ARM & ARM64)
+        run: |
+          cd $GITHUB_WORKSPACE
+          git clone --depth=1 https://github.com gcc64
+          git clone --depth=1 https://github.com arm
+
+      - name: Clone Samsung Galaxy A11 Kernel Source Tree
+        run: |
+          cd $GITHUB_WORKSPACE
+          # Clones the stable MSM8953 (Snapdragon 450) base architecture branch
+          git clone --depth=1 https://github.com kernel
+          
+      - name: Inject Custom NetHunter Configuration Toggles
+        run: |
+          cd $GITHUB_WORKSPACE/kernel
+          export PATH="$GITHUB_WORKSPACE/gcc64/bin:$GITHUB_WORKSPACE/arm/bin:$PATH"
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-android-
+          export CROSS_COMPILE_ARM32=arm-linux-androideabi-
+          
+          # Initialize default vendor hardware profile configuration
+          make msm8953_defconfig
+          
+          # Append your specific functional requirements directly to the build profile configuration
+          echo "# --- [Internal Qualcomm Snapdragon Modules] ---" >> .config
+          echo "CONFIG_CFG80211=y" >> .config
+          echo "CONFIG_CFG80211_INTERNAL_REGDB=y" >> .config
+          echo "CONFIG_QCACLD_WLAN=m" >> .config
+          echo "CONFIG_QCACLD_WLAN_MONITOR=y" >> .config
+          echo "CONFIG_SME_ENABLE_MONITOR_MODE=y" >> .config
+          echo "CONFIG_WLAN_HDD_MONITOR=y" >> .config
+          
+          echo "# --- [Atheros USB Wi-Fi Drivers] ---" >> .config
+          echo "CONFIG_ATH_CARDS=y" >> .config
+          echo "CONFIG_ATH9K_HTC=m" >> .config
+          echo "CONFIG_ATH9K_HTC_DEBUGFS=y" >> .config
+          echo "CONFIG_CARL9170=m" >> .config
+          echo "CONFIG_CARL9170_WPC=y" >> .config
+          
+          echo "# --- [Ralink RT2x00/RT30xx Drivers] ---" >> .config
+          echo "CONFIG_RT2X00=y" >> .config
+          echo "CONFIG_RT2500USB=m" >> .config
+          echo "CONFIG_RT2800USB=m" >> .config
+          echo "CONFIG_RT2800USB_RT3xxx=y" >> .config
+          echo "CONFIG_RT2800USB_RT53xx=y" >> .config
+          echo "CONFIG_RT2800USB_UNKNOWN=y" >> .config
+          echo "CONFIG_RT2X00_LIB_USB=m" >> .config
+          echo "CONFIG_RT2X00_LIB_FIRMWARE=y" >> .config
+          
+          echo "# --- [Realtek RTL8187 & RTL8XXXU Drivers] ---" >> .config
+          echo "CONFIG_RTL8187=m" >> .config
+          echo "CONFIG_RTL_CARDS=y" >> .config
+          echo "CONFIG_RTL8XXXU=m" >> .config
+          echo "CONFIG_RTL8XXXU_XX_2G=y" >> .config
+          
+          echo "# --- [USB Keyboard & Mouse HID Emulation] ---" >> .config
+          echo "CONFIG_USB_F_HID=y" >> .config
+          echo "CONFIG_USB_CONFIGFS_F_HID=y" >> .config
+          echo "CONFIG_HID_GENERIC=y" >> .config
+          echo "CONFIG_UHID=y" >> .config
+          
+          echo "# --- [SELinux Permissive Overrides] ---" >> .config
+          echo "CONFIG_SECURITY_SELINUX_BOOTPARAM=y" >> .config
+          echo "CONFIG_SECURITY_SELINUX_BOOTPARAM_VALUE=1" >> .config
+          echo "CONFIG_SECURITY_SELINUX_DEVELOP=y" >> .config
+          
+          echo "# --- [Linux Namespaces & Chroot Containers] ---" >> .config
+          echo "CONFIG_NAMESPACES=y" >> .config
+          echo "CONFIG_UTS_NS=y" >> .config
+          echo "CONFIG_IPC_NS=y" >> .config
+          echo "CONFIG_USER_NS=y" >> .config
+          echo "CONFIG_PID_NS=y" >> .config
+          echo "CONFIG_NET_NS=y" >> .config
+
+      - name: Run Cross-Compilation Command
+        run: |
+          cd $GITHUB_WORKSPACE/kernel
+          export PATH="$GITHUB_WORKSPACE/gcc64/bin:$GITHUB_WORKSPACE/arm/bin:$PATH"
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-android-
+          export CROSS_COMPILE_ARM32=arm-linux-androideabi-
+          
+          # Compile the system image package and modules using all available CPU threads
+          make -j$(nproc)
+          make -j$(nproc) modules
+
+      - name: Consolidate Output Drivers and Modules
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/output_delivery
+          # Locate and move compiled .ko files into delivery folder
+          find $GITHUB_WORKSPACE/kernel -name "*.ko" -exec cp {} $GITHUB_WORKSPACE/output_delivery/ \;
+          # Safely copy the core compiled kernel base boot image if generated successfully
+          if [ -f $GITHUB_WORKSPACE/kernel/arch/arm64/boot/Image.gz-dtb ]; then
+            cp $GITHUB_WORKSPACE/kernel/arch/arm64/boot/Image.gz-dtb $GITHUB_WORKSPACE/output_delivery/
+          elif [ -f $GITHUB_WORKSPACE/kernel/arch/arm64/boot/Image ]; then
+            cp $GITHUB_WORKSPACE/kernel/arch/arm64/boot/Image $GITHUB_WORKSPACE/output_delivery/
+          fi
+
+      - name: Upload Output Binaries as GitHub Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Samsung-A11-NetHunter-Kernel-Files
+          path: ${{ github.workspace }}/output_delivery/*

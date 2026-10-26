@@ -11,11 +11,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Compiling Toolchain Dependencies
+            - name: Install Compiling Toolchain Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev zinc \
+          sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev \
             bison flex libelf-dev git subversion python3-dev python2-dev libtinfo5 ccache
+
 
       - name: Download GCC Cross-Compilers (ARM & ARM64)
         run: |

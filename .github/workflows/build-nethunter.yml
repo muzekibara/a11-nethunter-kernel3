@@ -1,27 +1,22 @@
 name: Build Custom Samsung A11 NetHunter Kernel
 
 on:
-  workflow_dispatch: # Allows you to manually trigger the build with a single click
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Maximize System Build Disk Space
-        uses: easimon/maximize-build-space@main
-        with:
-          root-reserve-mb: 5120
-          swap-size-mb: 2048
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
       - name: Install Compiling Toolchain Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev zinc \
             bison flex libelf-dev git subversion python3-dev python2-dev libtinfo5 ccache
+
 
       - name: Download GCC Cross-Compilers (ARM & ARM64)
         run: |

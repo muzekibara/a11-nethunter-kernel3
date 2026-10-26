@@ -17,7 +17,6 @@ jobs:
           sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev zinc \
             bison flex libelf-dev git subversion python3-dev python2-dev libtinfo5 ccache
 
-
       - name: Download GCC Cross-Compilers (ARM & ARM64)
         run: |
           cd $GITHUB_WORKSPACE
@@ -27,7 +26,6 @@ jobs:
       - name: Clone Samsung Galaxy A11 Kernel Source Tree
         run: |
           cd $GITHUB_WORKSPACE
-          # Clones the stable MSM8953 (Snapdragon 450) base architecture branch
           git clone --depth=1 https://github.com kernel
           
       - name: Inject Custom NetHunter Configuration Toggles
@@ -42,14 +40,6 @@ jobs:
           make msm8953_defconfig
           
           # Append your specific functional requirements directly to the build profile configuration
-          echo "# --- [Internal Qualcomm Snapdragon Modules] ---" >> .config
-          echo "CONFIG_CFG80211=y" >> .config
-          echo "CONFIG_CFG80211_INTERNAL_REGDB=y" >> .config
-          echo "CONFIG_QCACLD_WLAN=m" >> .config
-          echo "CONFIG_QCACLD_WLAN_MONITOR=y" >> .config
-          echo "CONFIG_SME_ENABLE_MONITOR_MODE=y" >> .config
-          echo "CONFIG_WLAN_HDD_MONITOR=y" >> .config
-          
           echo "# --- [Atheros USB Wi-Fi Drivers] ---" >> .config
           echo "CONFIG_ATH_CARDS=y" >> .config
           echo "CONFIG_ATH9K_HTC=m" >> .config
